@@ -8,12 +8,11 @@ from jax.flatten_util import ravel_pytree
 from kernel import distances, kernel_matrix
 
 
-@partial(jit, static_argnums=(6, 7, 8, 9, 10))
+@partial(jit, static_argnums=(5, 6, 7, 8, 9))
 def dcmmd(
     key,
     X,
     Y,
-    robustness,
     alpha=0.05,
     bandwidth_multiplier=1,
     kernel="gaussian",
@@ -23,7 +22,7 @@ def dcmmd(
     min_mem_permutations=False,
 ):
     """
-    Data Corruption Two-Sample dcMMD test.
+    Two-Sample MMD test.
 
     Given data from one distribution and data from another distribution,
     return 0 if the test fails to reject the null
@@ -45,9 +44,6 @@ def dcmmd(
     Y: array_like
         The shape of Y must be of the form (n, d) where n is the number
         of samples and d is the dimension.
-    robustness: int
-        Robustness parameter (integer between 1 and min(m, n)).
-        The test is robust to the corruption of up to this number of samples.
     alpha: scalar
         Test significance level between 0 and 1.
     bandwidth_multiplier: scalar
@@ -61,14 +57,14 @@ def dcmmd(
     return_dictionary: bool
         If True, a dictionary is also returned containing:
         - Test output
-        - Robustness
         - Test level alpha
         - Number of permutations
         - Kernel
         - Bandwidth
         - MMD V-statistic
         - MMD quantile
-        - MMD quantile for data corruption
+        - p-value
+        - p-value threshold
     min_mem_kernel: bool
         If True then compute kernel matrix sequentially (lower memory).
         The speed improvement can vary depending on the use of CPU/GPU.
@@ -91,7 +87,6 @@ def dcmmd(
     m = X.shape[0]
     n = Y.shape[0]
     assert n >= 2 and m >= 2
-    assert robustness <= min(m, n)
     assert X.shape[1] == Y.shape[1]
     d = X.shape[1]
     assert kernel in ("gaussian", "laplace", "imq")
@@ -143,23 +138,26 @@ def dcmmd(
     mmd_original = mmd_values[B]
     mmd_values_sorted = jnp.sort(mmd_values)  # (B + 1, )
 
-    # test output test
+    # test output test (quantile)
     quantile = mmd_values_sorted[(jnp.ceil((B + 1) * (1 - alpha))).astype(int) - 1]
-    sensitivity = jnp.sqrt(2) / jnp.minimum(n, m)
-    quantile_DC = quantile + 2 * robustness * sensitivity
-    reject_mmd_val = mmd_original > quantile_DC
+    reject_mmd_val = mmd_original > quantile
+
+    # test output test (p-value)
+    p_val = jnp.mean(mmd_values >= mmd_original)
+    threshold = alpha
+    reject_p_val = p_val <= threshold
 
     # create rejection dictionary
     reject_dictionary = {}
-    reject_dictionary["dcMMD test reject"] = reject_mmd_val
-    reject_dictionary["Robustness"] = robustness
+    reject_dictionary["MMD test reject"] = reject_mmd_val
     reject_dictionary["Level"] = alpha
     reject_dictionary["Number of permutations"] = number_permutations
     reject_dictionary["Kernel " + kernel] = True
     reject_dictionary["Bandwidth"] = bandwidth
     reject_dictionary["MMD V-statistic"] = mmd_original
     reject_dictionary["MMD quantile"] = quantile
-    reject_dictionary["MMD DC-adjusted quantile"] = quantile_DC
+    reject_dictionary["p-value"] = p_val
+    reject_dictionary["p-value threshold"] = threshold
 
     # dcMMD test output
     if return_dictionary:
@@ -171,6 +169,7 @@ def dcmmd(
 @partial(
     jit,
     static_argnums=(
+        6,
         7,
         8,
         9,
@@ -182,7 +181,6 @@ def dchsic(
     key,
     X,
     Y,
-    robustness,
     alpha=0.05,
     bandwidth_multiplier_X=1,
     bandwidth_multiplier_Y=1,
@@ -193,7 +191,7 @@ def dchsic(
     min_mem_kernel=False,
 ):
     """
-    Data Corruption Independence dcHSIC test.
+    Independence HSIC test.
 
     Given paired data from a joint distribution,
     return 0 if the test fails to reject the null
@@ -215,9 +213,6 @@ def dchsic(
     Y: array_like
         The shape of Y must be of the form (n, d_Y) where m is the number
         of samples and d_Y is the dimension.
-    robustness: int
-        Robustness parameter (integer between 1 and min(m, n)).
-        The test is robust to the corruption of up to this number of samples.
     alpha: scalar
         Test significance level between 0 and 1.
     bandwidth_multiplier_X: scalar
@@ -237,14 +232,14 @@ def dchsic(
     return_dictionary: bool
         If True, a dictionary is also returned containing:
         - Test output
-        - Robustness
         - Test level alpha
         - Number of permutations
         - Kernel
         - Bandwidth
         - HSIC V-statistic
         - HSIC quantile
-        - HSIC quantile for data corruption
+        - p-value
+        - p-value threshold
     min_mem_kernel: bool
         If True then compute kernel matrix sequentially (lower memory).
         The speed improvement can vary depending on the use of CPU/GPU.
@@ -266,7 +261,6 @@ def dchsic(
     d_X = X.shape[1]
     d_Y = Y.shape[1]
     assert n >= 2
-    assert robustness <= n
     assert kernel_X in ("gaussian", "laplace", "imq")
     assert kernel_Y in ("gaussian", "laplace", "imq")
     assert B > 0 and type(B) is int
@@ -302,16 +296,18 @@ def dchsic(
     hsic_original = hsic_values[B]
     hsic_values_sorted = jnp.sort(hsic_values)  # (B + 1, )
 
-    # test output test
+    # test output test (quantile)
     quantile = hsic_values_sorted[(jnp.ceil((B + 1) * (1 - alpha))).astype(int) - 1]
-    sensitivity = 4 * (n - 1) / n**2
-    quantile_DC = quantile + 2 * robustness * sensitivity
-    reject_hsic_val = hsic_original > quantile_DC
+    reject_hsic_val = hsic_original > quantile
+
+    # test output test (p-value)
+    p_val = jnp.mean(hsic_values >= hsic_original)
+    threshold = alpha
+    reject_p_val = p_val <= threshold
 
     # create rejection dictionary
     reject_dictionary = {}
-    reject_dictionary["dcHSIC test reject"] = reject_hsic_val
-    reject_dictionary["Robustness"] = robustness
+    reject_dictionary["HSIC test reject"] = reject_hsic_val
     reject_dictionary["Level"] = alpha
     reject_dictionary["Number of permutations"] = number_permutations
     reject_dictionary["Kernel X " + kernel_X] = True
@@ -320,24 +316,11 @@ def dchsic(
     reject_dictionary["Bandwidth Y"] = bandwidth_Y
     reject_dictionary["HSIC V-statistic"] = hsic_original
     reject_dictionary["HSIC quantile"] = quantile
-    reject_dictionary["HSIC DC-adjusted quantile"] = quantile_DC
+    reject_dictionary["p-value"] = p_val
+    reject_dictionary["p-value threshold"] = threshold
 
     # dpHSIC test output
     if return_dictionary:
         return reject_hsic_val.astype(int), reject_dictionary
     else:
         return reject_hsic_val.astype(int)
-
-
-def human_readable_dict(dictionary):
-    """
-    Transform all jax arrays of one element into scalars.
-    """
-    meta_keys = dictionary.keys()
-    for meta_key in meta_keys:
-        if isinstance(dictionary[meta_key], jnp.ndarray):
-            dictionary[meta_key] = dictionary[meta_key].item()
-        elif isinstance(dictionary[meta_key], dict):
-            for key in dictionary[meta_key].keys():
-                if isinstance(dictionary[meta_key][key], jnp.ndarray):
-                    dictionary[meta_key][key] = dictionary[meta_key][key].item()
