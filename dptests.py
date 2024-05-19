@@ -96,7 +96,7 @@ def dpmmd(
     m = X.shape[0]
     n = Y.shape[0]
     assert n >= 2 and m >= 2
-    assert robustness <= min(m, n)
+    # assert robustness <= min(m, n)
     assert X.shape[1] == Y.shape[1]
     d = X.shape[1]
     assert kernel in ("gaussian", "laplace", "imq")
@@ -107,11 +107,24 @@ def dpmmd(
 
     # DP level
     privacy_level = jnp.log(1 / alpha) / robustness
-
     # Adjust the test level
     # \alpha_{adjusted} = \exp(-r * \varepsilon) \alpha
     alpha_preadjusted = alpha
-    alpha = alpha**2
+    alpha = alpha * jnp.exp(-robustness * privacy_level)
+
+    # DP level ()
+    #privacy_level = 1.5 / robustness
+    ## Adjust the test level
+    ## \alpha_{adjusted} = \exp(-r * \varepsilon) \alpha
+    #alpha_preadjusted = alpha
+    #alpha = alpha * jnp.exp(-robustness * privacy_level)
+    
+    ## DP level ()
+    #privacy_level = (1 + jnp.log(1 / alpha)) / robustness
+    ## Adjust the test level
+    ## \alpha_{adjusted} = \exp(-r * \varepsilon) \alpha
+    #alpha_preadjusted = alpha
+    #alpha = alpha * jnp.exp(-robustness * privacy_level)
 
     # DP noise
     key, subkey = random.split(key)
@@ -222,7 +235,7 @@ def dphsic(
     bandwidth_multiplier_Y=1,
     kernel_X="gaussian",
     kernel_Y="gaussian",
-    number_permutations=2000,
+    number_permutations=500,
     return_dictionary=False,
     min_mem_kernel=False,
 ):
@@ -305,7 +318,7 @@ def dphsic(
     d_X = X.shape[1]
     d_Y = Y.shape[1]
     assert n >= 2
-    assert robustness <= n
+    # assert robustness <= n
     assert kernel_X in ("gaussian", "laplace", "imq")
     assert kernel_Y in ("gaussian", "laplace", "imq")
     assert B > 0 and type(B) is int
@@ -318,11 +331,10 @@ def dphsic(
 
     # DP level
     privacy_level = jnp.log(1 / alpha) / robustness
-
     # Adjust the test level
     # \alpha_{adjusted} = \exp(-r * \varepsilon) \alpha
     alpha_preadjusted = alpha
-    alpha = alpha**2
+    alpha = alpha * jnp.exp(-robustness * privacy_level)
 
     # DP noise
     key, subkey = random.split(key)

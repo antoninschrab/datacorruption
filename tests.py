@@ -8,11 +8,12 @@ from jax.flatten_util import ravel_pytree
 from kernel import distances, kernel_matrix
 
 
-@partial(jit, static_argnums=(5, 6, 7, 8, 9))
-def dcmmd(
+@partial(jit, static_argnums=(6, 7, 8, 9, 10))
+def mmd(
     key,
     X,
     Y,
+    robustness,
     alpha=0.05,
     bandwidth_multiplier=1,
     kernel="gaussian",
@@ -44,6 +45,8 @@ def dcmmd(
     Y: array_like
         The shape of Y must be of the form (n, d) where n is the number
         of samples and d is the dimension.
+    robustness: int
+        Placeholder
     alpha: scalar
         Test significance level between 0 and 1.
     bandwidth_multiplier: scalar
@@ -177,16 +180,17 @@ def dcmmd(
         11,
     ),
 )
-def dchsic(
+def hsic(
     key,
     X,
     Y,
+    robustness,
     alpha=0.05,
     bandwidth_multiplier_X=1,
     bandwidth_multiplier_Y=1,
     kernel_X="gaussian",
     kernel_Y="gaussian",
-    number_permutations=2000,
+    number_permutations=500,
     return_dictionary=False,
     min_mem_kernel=False,
 ):
@@ -215,6 +219,8 @@ def dchsic(
         of samples and d_Y is the dimension.
     alpha: scalar
         Test significance level between 0 and 1.
+    robustness: int
+        Placeholder
     bandwidth_multiplier_X: scalar
         Bandwidth for l1 X-kernels is d_X * bandwidth_multiplier.
         Bandwidth for l2 X-kernels is sqrt(d_X) * bandwidth_multiplier.
