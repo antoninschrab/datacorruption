@@ -1,3 +1,12 @@
+"""
+This code has been adapted from the dpkernel repository under the MIT License.
+
+Differentially Private Permutation Tests: Applications to Kernel Methods
+Ilmun Kim, Antonin Schrab
+https://arxiv.org/abs/2310.19043
+https://github.com/antoninschrab/dpkernel-paper
+"""
+
 from functools import partial
 
 import jax
